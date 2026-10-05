@@ -4,16 +4,18 @@ import type { LatencyProject } from "../../shared/domain/types";
 interface Props {
   projects: LatencyProject[];
   activeId: string;
+  isSaving: boolean;
   onChoose: (id: string) => void;
   onCreate: () => void;
   onRename: (name: string) => void;
-  onDuplicate: () => void;
+  onDuplicate: (id: string) => void;
   onOpenEditor: () => void;
 }
 
 export default function ProjectsPanel({
   projects,
   activeId,
+  isSaving,
   onChoose,
   onCreate,
   onRename,
@@ -99,9 +101,10 @@ export default function ProjectsPanel({
               <div className="cover-actions">
                 <button
                   className="icon-button light"
-                  title="复制项目"
-                  aria-label="复制项目"
-                  onClick={onDuplicate}
+                  title="复制此项目"
+                  aria-label="复制此项目"
+                  disabled={isSaving}
+                  onClick={() => onDuplicate(active.id)}
                 >
                   <Copy size={15} />
                 </button>

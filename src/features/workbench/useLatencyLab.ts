@@ -7,7 +7,7 @@ import type {
 } from "../../shared/domain/types";
 import {
   createProject,
-  duplicateProject,
+  duplicateProjectById,
   renameProject,
   selectProject,
 } from "../projects/projectViewModel";
@@ -51,6 +51,7 @@ export function useLatencyLab() {
   );
   const queue = useRef(Promise.resolve());
   const revision = useRef(0);
+  const persistingRef = useRef(false);
   const activeProject =
     document?.projects.find(
       (project) => project.id === document.activeProjectId,
@@ -117,16 +118,19 @@ export function useLatencyLab() {
       setStatus(nextStatus);
       setNotice("");
       setPersisted("saving");
+      persistingRef.current = true;
       queue.current = queue.current
         .then(() => repository.save(next))
         .then(() => {
           if (revision.current === currentRevision) {
+            persistingRef.current = false;
             setPersisted("saved");
             if (nextStatus === "editing") setStatus("completed");
           }
         })
         .catch(() => {
           if (revision.current === currentRevision) {
+            persistingRef.current = false;
             setPersisted("error");
             setStatus("error");
             setNotice("保存失败。数据仍保留在当前页面，请重试保存。");
@@ -164,11 +168,37 @@ export function useLatencyLab() {
     [activeProject, editProject],
   );
 
-  const duplicateActive = useCallback(() => {
-    const current = documentRef.current;
-    if (current && activeProject)
-      commit(duplicateProject(current, activeProject), "editing");
-  }, [activeProject, commit]);
+  const duplicateProjectByIdAction = useCallback(
+    (projectId: string) => {
+      const current = documentRef.current;
+      if (!current) return;
+      if (persistingRef.current) {
+        // 上一个动作仍在落盘：行内按钮同时会被禁用，这里是兜底。
+        setNotice("项目正在保存中，请稍候再复制。");
+        return;
+      }
+      const source = current.projects.find(
+        (project) => project.id === projectId,
+      );
+      const outcome = duplicateProjectById(current, projectId);
+      if (!outcome || !source) {
+        // 这一行指向的项目已在别处（例如另一标签页）被删除。
+        setStatus("error");
+        setNotice("该项目已被删除，无法复制。项目列表可能已在别处更新。");
+        return;
+      }
+      const copy = outcome.projects[0];
+      const wasActive = current.activeProjectId === projectId;
+      // 复制不改变 activeProjectId：只有用户显式打开副本才切换编辑上下文。
+      commit(outcome, "ready");
+      setNotice(
+        wasActive
+          ? `已创建副本「${copy?.title ?? ""}」。`
+          : `已创建副本「${copy?.title ?? ""}」，当前仍在编辑「${source.title}」。`,
+      );
+    },
+    [commit],
+  );
 
   const deleteProject = useCallback(
     (id: string) => {
@@ -283,7 +313,7 @@ export function useLatencyLab() {
     chooseProject,
     newProject,
     renameActive,
-    duplicateActive,
+    duplicateProjectByIdAction,
     deleteProject,
     addNode,
     patchNode,
