@@ -33,43 +33,66 @@ export function renameProject(
   return { ...project, title: title.trim() || "未命名链路", updatedAt: now };
 }
 
+export type DuplicateProjectResult =
+  | { status: "duplicated"; document: WorkspaceDocument; copy: LatencyProject }
+  | { status: "missing" };
+
+function uniqueCopyTitle(
+  document: WorkspaceDocument,
+  sourceTitle: string,
+): string {
+  const titles = new Set(document.projects.map((project) => project.title));
+  const base = `${sourceTitle} · 副本`;
+  if (!titles.has(base)) return base;
+  let suffix = 2;
+  while (titles.has(`${base} ${suffix}`)) suffix += 1;
+  return `${base} ${suffix}`;
+}
+
 export function duplicateProject(
   document: WorkspaceDocument,
-  project: LatencyProject,
+  projectId: string,
   now = Date.now(),
-): WorkspaceDocument {
+): DuplicateProjectResult {
+  const sourceIndex = document.projects.findIndex(
+    (project) => project.id === projectId,
+  );
+  const source = document.projects[sourceIndex];
+  if (!source) return { status: "missing" };
   const idMap = new Map<string, string>();
-  const clonedNodes = project.nodes.map((source) => {
+  const clonedNodes = source.nodes.map((node) => {
     const id = crypto.randomUUID();
-    idMap.set(source.id, id);
-    return { ...source, id, dependencyIds: [], fallbackNodeId: undefined };
+    idMap.set(node.id, id);
+    return { ...node, id, dependencyIds: [], fallbackNodeId: undefined };
   });
   const copy: LatencyProject = {
-    ...structuredClone(project),
+    ...structuredClone(source),
     id: `project-${crypto.randomUUID()}`,
-    title: `${project.title} · 副本`,
+    title: uniqueCopyTitle(document, source.title),
     createdAt: now,
     updatedAt: now,
     scenarios: [],
     nodes: clonedNodes.map((node, index) => {
-      const source = project.nodes[index];
-      if (!source) return node;
-      const fallbackId = source.fallbackNodeId
-        ? idMap.get(source.fallbackNodeId)
+      const sourceNode = source.nodes[index];
+      if (!sourceNode) return node;
+      const fallbackId = sourceNode.fallbackNodeId
+        ? idMap.get(sourceNode.fallbackNodeId)
         : undefined;
       return {
         ...node,
-        dependencyIds: source.dependencyIds
+        dependencyIds: sourceNode.dependencyIds
           .map((id) => idMap.get(id))
           .filter((id): id is string => Boolean(id)),
         ...(fallbackId ? { fallbackNodeId: fallbackId } : {}),
       };
     }),
   };
+  const projects = [...document.projects];
+  projects.splice(sourceIndex + 1, 0, copy);
   return {
-    ...document,
-    activeProjectId: copy.id,
-    projects: [copy, ...document.projects],
+    status: "duplicated",
+    document: { ...document, projects },
+    copy,
   };
 }
 

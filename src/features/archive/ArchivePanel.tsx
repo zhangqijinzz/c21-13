@@ -8,7 +8,7 @@ interface Props {
   storageState: "saving" | "saved" | "error";
   notice: string;
   onChoose: (id: string) => void;
-  onDuplicate: () => void;
+  onDuplicate: (id: string) => void;
   onDelete: (id: string) => void;
   onRetrySave: () => void;
 }
@@ -110,9 +110,9 @@ export default function ArchivePanel({
             <span className="archive-actions">
               <button
                 className="icon-button"
-                title="复制当前项目"
-                aria-label="复制当前项目"
-                onClick={onDuplicate}
+                title="复制项目"
+                aria-label={`复制项目 ${project.title}`}
+                onClick={() => onDuplicate(project.id)}
               >
                 <Copy size={14} />
               </button>

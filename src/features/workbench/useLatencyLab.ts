@@ -164,11 +164,22 @@ export function useLatencyLab() {
     [activeProject, editProject],
   );
 
-  const duplicateActive = useCallback(() => {
-    const current = documentRef.current;
-    if (current && activeProject)
-      commit(duplicateProject(current, activeProject), "editing");
-  }, [activeProject, commit]);
+  const duplicateProjectById = useCallback(
+    (id: string) => {
+      const current = documentRef.current;
+      if (!current) return;
+      const outcome = duplicateProject(current, id);
+      if (outcome.status === "missing") {
+        setNotice("该项目已被删除，无法复制。");
+        return;
+      }
+      commit(outcome.document, "editing");
+      setNotice(
+        `已创建副本「${outcome.copy.title}」；方案快照留在原项目，当前编辑的项目不变。`,
+      );
+    },
+    [commit],
+  );
 
   const deleteProject = useCallback(
     (id: string) => {
@@ -283,7 +294,7 @@ export function useLatencyLab() {
     chooseProject,
     newProject,
     renameActive,
-    duplicateActive,
+    duplicateProjectById,
     deleteProject,
     addNode,
     patchNode,

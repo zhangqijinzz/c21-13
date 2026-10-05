@@ -134,7 +134,7 @@ export default function LatencyLabView() {
                 vm.setModule("graph");
               }}
               onRename={vm.renameActive}
-              onDuplicate={vm.duplicateActive}
+              onDuplicate={() => vm.duplicateProjectById(active.id)}
               onOpenEditor={() => vm.setModule("graph")}
             />
           )}
@@ -184,7 +184,7 @@ export default function LatencyLabView() {
               storageState={vm.persisted}
               notice={vm.notice}
               onChoose={vm.chooseProject}
-              onDuplicate={vm.duplicateActive}
+              onDuplicate={vm.duplicateProjectById}
               onDelete={vm.deleteProject}
               onRetrySave={vm.retrySave}
             />

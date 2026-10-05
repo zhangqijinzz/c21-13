@@ -33,12 +33,63 @@ describe("project and scenario view models", () => {
       activeProjectId: EXAMPLE_PROJECT.id,
       projects: [EXAMPLE_PROJECT],
     };
-    const duplicated = duplicateProject(initial, EXAMPLE_PROJECT, 10);
-    const copy = duplicated.projects[0];
-    expect(copy?.nodes[2]?.dependencyIds).toEqual([copy?.nodes[0]?.id]);
-    expect(copy?.nodes[4]?.fallbackNodeId).toBe(copy?.nodes[3]?.id);
-    expect(copy?.id).not.toBe(EXAMPLE_PROJECT.id);
-    expect(copy?.scenarios).toEqual([]);
+    const outcome = duplicateProject(initial, EXAMPLE_PROJECT.id, 10);
+    if (outcome.status !== "duplicated") throw new Error("Expected a copy");
+    const copy = outcome.copy;
+    expect(copy.nodes[2]?.dependencyIds).toEqual([copy.nodes[0]?.id]);
+    expect(copy.nodes[4]?.fallbackNodeId).toBe(copy.nodes[3]?.id);
+    expect(copy.id).not.toBe(EXAMPLE_PROJECT.id);
+    expect(copy.scenarios).toEqual([]);
+    expect(outcome.document.projects[1]?.id).toBe(copy.id);
+  });
+
+  it("duplicates the targeted row without switching the active project", () => {
+    const other = {
+      ...structuredClone(EXAMPLE_PROJECT),
+      id: "project-other",
+      title: "历史方案",
+    };
+    const initial = {
+      version: 1 as const,
+      activeProjectId: EXAMPLE_PROJECT.id,
+      projects: [EXAMPLE_PROJECT, other],
+    };
+    const outcome = duplicateProject(initial, "project-other", 10);
+    if (outcome.status !== "duplicated") throw new Error("Expected a copy");
+    expect(outcome.copy.title).toBe("历史方案 · 副本");
+    expect(outcome.document.activeProjectId).toBe(EXAMPLE_PROJECT.id);
+    expect(outcome.document.projects.map((project) => project.id)).toEqual([
+      EXAMPLE_PROJECT.id,
+      "project-other",
+      outcome.copy.id,
+    ]);
+  });
+
+  it("deduplicates copy titles across repeated duplications", () => {
+    const initial = {
+      version: 1 as const,
+      activeProjectId: EXAMPLE_PROJECT.id,
+      projects: [EXAMPLE_PROJECT],
+    };
+    const first = duplicateProject(initial, EXAMPLE_PROJECT.id, 10);
+    if (first.status !== "duplicated") throw new Error("Expected a copy");
+    expect(first.copy.title).toBe(`${EXAMPLE_PROJECT.title} · 副本`);
+    const second = duplicateProject(first.document, EXAMPLE_PROJECT.id, 20);
+    if (second.status !== "duplicated") throw new Error("Expected a copy");
+    expect(second.copy.title).toBe(`${EXAMPLE_PROJECT.title} · 副本 2`);
+    const titles = second.document.projects.map((project) => project.title);
+    expect(new Set(titles).size).toBe(titles.length);
+  });
+
+  it("reports a missing project instead of duplicating a stale row", () => {
+    const initial = {
+      version: 1 as const,
+      activeProjectId: EXAMPLE_PROJECT.id,
+      projects: [EXAMPLE_PROJECT],
+    };
+    expect(duplicateProject(initial, "project-gone", 10)).toEqual({
+      status: "missing",
+    });
   });
 
   it("saves a complete snapshot and restores its parameters", () => {
